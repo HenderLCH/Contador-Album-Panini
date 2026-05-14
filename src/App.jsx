@@ -1,41 +1,113 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactCountryFlag from 'react-country-flag'
 import { albumMeta, groups, specialStickers } from './data/albumData'
+import { isSupabaseConfigured, supabase } from './supabaseClient'
 
 const STORAGE_KEY = 'album-panini-2026-owned'
+const COLLECTION_KEY = 'album-panini-2026-collection-id'
 const THEME_KEY = 'album-panini-2026-theme'
-const STICKER_STATE = {
-  OWNED: 'owned',
-  DUPLICATE: 'duplicate',
-}
 const SOCIAL_LINKS = {
   github: 'https://github.com/HenderLCH',
   instagram: 'https://instagram.com/henderjr',
   linkedin: 'https://www.linkedin.com/in/hender-eduardo-labrador-chacon/',
 }
 
-function CountrySection({ country, stickersState, toggleSticker, setStickerState }) {
+const createCollectionId = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID().slice(0, 8).toUpperCase()
+  return Math.random().toString(36).slice(2, 10).toUpperCase()
+}
+
+const normalizeStickerCounts = (rawData) => {
+  if (typeof rawData !== 'object' || rawData === null) return {}
+
+  return Object.fromEntries(
+    Object.entries(rawData)
+      .map(([key, value]) => {
+        if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+          return [key, Math.floor(value)]
+        }
+        if (value === true || value === 'owned') return [key, 1]
+        if (value === 'duplicate') return [key, 2]
+        return null
+      })
+      .filter(Boolean),
+  )
+}
+
+const getStickerCount = (stickerCounts, id) => stickerCounts[id] ?? 0
+
+function StickerButton({ id, count, increaseSticker, decreaseSticker, resetSticker }) {
+  const isOwned = count > 0
+  const hasDuplicates = count > 1
+
+  return (
+    <div
+      className={`overflow-hidden rounded-md border text-sm font-medium transition ${
+        hasDuplicates
+          ? 'border-amber-500 bg-amber-400 text-slate-900'
+          : isOwned
+            ? 'border-emerald-600 bg-emerald-500 text-white'
+            : 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+      }`}
+    >
+      <div className="flex min-h-16 w-full flex-col items-center justify-center px-2 py-3">
+        <span className="text-base font-bold">{id}</span>
+        <span className="text-xs font-bold">{isOwned ? `Cantidad: ${count}` : 'Sin marcar'}</span>
+      </div>
+      <div className="grid grid-cols-3 border-t border-black/10 text-sm font-bold dark:border-white/20">
+        <button
+          type="button"
+          onClick={() => increaseSticker(id)}
+          className="min-h-11 px-2 py-2 hover:bg-black/10 dark:hover:bg-white/10"
+          aria-label={`Sumar ${id}`}
+        >
+          +1
+        </button>
+        <button
+          type="button"
+          onClick={() => decreaseSticker(id)}
+          disabled={!isOwned}
+          className="min-h-11 border-x border-black/10 px-2 py-2 hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/20 dark:hover:bg-white/10"
+          aria-label={`Restar ${id}`}
+        >
+          -1
+        </button>
+        <button
+          type="button"
+          onClick={() => resetSticker(id)}
+          disabled={!isOwned}
+          className="min-h-11 px-2 py-2 hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-white/10"
+          aria-label={`Desmarcar ${id}`}
+        >
+          0
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CountrySection({ country, stickerCounts, increaseSticker, decreaseSticker, resetSticker, setStickerCount }) {
   const [isOpen, setIsOpen] = useState(false)
   const stickers = useMemo(
     () => Array.from({ length: albumMeta.stickersPerCountry }, (_, i) => `${country.code} ${i + 1}`),
     [country.code],
   )
 
-  const ownedCount = stickers.filter((id) => Boolean(stickersState[id])).length
+  const ownedCount = stickers.filter((id) => getStickerCount(stickerCounts, id) > 0).length
   const isCompleted = ownedCount === albumMeta.stickersPerCountry
 
   const markAll = () => {
     stickers.forEach((id) => {
-      if (!stickersState[id]) {
-        setStickerState(id, STICKER_STATE.OWNED)
+      if (getStickerCount(stickerCounts, id) === 0) {
+        setStickerCount(id, 1)
       }
     })
   }
 
   const clearAll = () => {
     stickers.forEach((id) => {
-      if (stickersState[id]) {
-        setStickerState(id, null)
+      if (getStickerCount(stickerCounts, id) > 0) {
+        setStickerCount(id, 0)
       }
     })
   }
@@ -98,28 +170,17 @@ function CountrySection({ country, stickersState, toggleSticker, setStickerState
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6">
-            {stickers.map((stickerId) => {
-              const status = stickersState[stickerId]
-              const isOwned = status === STICKER_STATE.OWNED
-              const isDuplicate = status === STICKER_STATE.DUPLICATE
-              return (
-                <button
-                  key={stickerId}
-                  type="button"
-                  onClick={() => toggleSticker(stickerId)}
-                  className={`rounded-md border px-2 py-2 text-sm font-medium transition ${
-                    isOwned
-                      ? 'border-emerald-600 bg-emerald-500 text-white'
-                      : isDuplicate
-                        ? 'border-amber-500 bg-amber-400 text-slate-900'
-                      : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {stickerId}
-                </button>
-              )
-            })}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+            {stickers.map((stickerId) => (
+              <StickerButton
+                key={stickerId}
+                id={stickerId}
+                count={getStickerCount(stickerCounts, stickerId)}
+                increaseSticker={increaseSticker}
+                decreaseSticker={decreaseSticker}
+                resetSticker={resetSticker}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -127,13 +188,13 @@ function CountrySection({ country, stickersState, toggleSticker, setStickerState
   )
 }
 
-function GroupSection({ group, stickersState, toggleSticker, setStickerState }) {
+function GroupSection({ group, stickerCounts, increaseSticker, decreaseSticker, resetSticker, setStickerCount }) {
   const [isOpen, setIsOpen] = useState(false)
 
   const groupStickerIds = group.countries.flatMap((country) =>
     Array.from({ length: albumMeta.stickersPerCountry }, (_, i) => `${country.code} ${i + 1}`),
   )
-  const ownedInGroup = groupStickerIds.filter((id) => Boolean(stickersState[id])).length
+  const ownedInGroup = groupStickerIds.filter((id) => getStickerCount(stickerCounts, id) > 0).length
 
   return (
     <section id={`group-${group.id}`} className="scroll-mt-28 rounded-2xl border border-slate-300 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
@@ -160,9 +221,11 @@ function GroupSection({ group, stickersState, toggleSticker, setStickerState }) 
             <CountrySection
               key={country.code}
               country={country}
-              stickersState={stickersState}
-              toggleSticker={toggleSticker}
-              setStickerState={setStickerState}
+              stickerCounts={stickerCounts}
+              increaseSticker={increaseSticker}
+              decreaseSticker={decreaseSticker}
+              resetSticker={resetSticker}
+              setStickerCount={setStickerCount}
             />
           ))}
         </div>
@@ -172,23 +235,20 @@ function GroupSection({ group, stickersState, toggleSticker, setStickerState }) 
 }
 
 function App() {
-  const [stickersState, setStickersState] = useState(() => {
+  const [stickerCounts, setStickerCounts] = useState(() => {
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')
-      if (typeof parsed !== 'object' || parsed === null) return {}
-      return Object.fromEntries(
-        Object.entries(parsed)
-          .map(([key, value]) => {
-            if (value === STICKER_STATE.OWNED || value === true) return [key, STICKER_STATE.OWNED]
-            if (value === STICKER_STATE.DUPLICATE) return [key, STICKER_STATE.DUPLICATE]
-            return null
-          })
-          .filter(Boolean),
-      )
+      return normalizeStickerCounts(parsed)
     } catch {
       return {}
     }
   })
+  const [collectionId, setCollectionId] = useState(() => localStorage.getItem(COLLECTION_KEY) || createCollectionId())
+  const [collectionInput, setCollectionInput] = useState(collectionId)
+  const [syncStatus, setSyncStatus] = useState(isSupabaseConfigured ? 'Cargando Supabase...' : 'Configura Supabase para sincronizar')
+  const [cloudReady, setCloudReady] = useState(!isSupabaseConfigured)
+  const latestStickerCounts = useRef(stickerCounts)
+  const [lastChange, setLastChange] = useState(null)
   const [darkMode, setDarkMode] = useState(() => {
     const storedTheme = localStorage.getItem(THEME_KEY)
     if (storedTheme) return storedTheme === 'dark'
@@ -196,52 +256,153 @@ function App() {
   })
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stickersState))
-  }, [stickersState])
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stickerCounts))
+    latestStickerCounts.current = stickerCounts
+  }, [stickerCounts])
+
+  useEffect(() => {
+    localStorage.setItem(COLLECTION_KEY, collectionId)
+  }, [collectionId])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return
+
+    let isCancelled = false
+
+    const loadCollection = async () => {
+      setCloudReady(false)
+      setSyncStatus('Cargando desde Supabase...')
+
+      const { data, error } = await supabase
+        .from('album_collections')
+        .select('stickers')
+        .eq('collection_id', collectionId)
+        .maybeSingle()
+
+      if (isCancelled) return
+
+      if (error) {
+        setSyncStatus(`Error al cargar: ${error.message}`)
+        setCloudReady(true)
+        return
+      }
+
+      if (data?.stickers) {
+        const loadedStickerCounts = normalizeStickerCounts(data.stickers)
+        latestStickerCounts.current = loadedStickerCounts
+        setStickerCounts(loadedStickerCounts)
+        setSyncStatus('Datos cargados desde Supabase')
+      } else {
+        const { error: insertError } = await supabase.from('album_collections').insert({
+          collection_id: collectionId,
+          stickers: latestStickerCounts.current,
+          updated_at: new Date().toISOString(),
+        })
+
+        if (insertError) {
+          setSyncStatus(`Error al crear coleccion: ${insertError.message}`)
+        } else {
+          setSyncStatus('Coleccion creada en Supabase')
+        }
+      }
+
+      setCloudReady(true)
+    }
+
+    loadCollection()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [collectionId])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !cloudReady) return
+
+    const saveTimeout = window.setTimeout(async () => {
+      setSyncStatus('Guardando en Supabase...')
+
+      const { error } = await supabase.from('album_collections').upsert({
+        collection_id: collectionId,
+        stickers: stickerCounts,
+        updated_at: new Date().toISOString(),
+      })
+
+      setSyncStatus(error ? `Error al guardar: ${error.message}` : 'Sincronizado con Supabase')
+    }, 700)
+
+    return () => window.clearTimeout(saveTimeout)
+  }, [cloudReady, collectionId, stickerCounts])
 
   useEffect(() => {
     localStorage.setItem(THEME_KEY, darkMode ? 'dark' : 'light')
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
-  const toggleSticker = (id) => {
-    setStickersState((prev) => {
-      const current = prev[id]
-      if (!current) {
-        return { ...prev, [id]: STICKER_STATE.OWNED }
-      }
-      if (current === STICKER_STATE.OWNED) {
-        return { ...prev, [id]: STICKER_STATE.DUPLICATE }
-      }
-      if (current === STICKER_STATE.DUPLICATE) {
-        const clone = { ...prev }
-        delete clone[id]
-        return clone
-      }
-      return prev
-    })
+  const setStickerCount = (id, count, shouldTrackChange = true) => {
+    const previousStickerCounts = latestStickerCounts.current
+    const previousCount = getStickerCount(previousStickerCounts, id)
+    const nextCount = Math.max(Math.floor(count), 0)
+
+    if (previousCount === nextCount) return
+
+    const nextStickerCounts = { ...previousStickerCounts }
+    if (nextCount === 0) {
+      delete nextStickerCounts[id]
+    } else {
+      nextStickerCounts[id] = nextCount
+    }
+
+    latestStickerCounts.current = nextStickerCounts
+    setStickerCounts(nextStickerCounts)
+
+    if (shouldTrackChange) {
+      setLastChange({ id, previousCount })
+    }
   }
 
-  const setStickerState = (id, state) => {
-    setStickersState((prev) => {
-      if (!state) {
-        if (!prev[id]) return prev
-        const clone = { ...prev }
-        delete clone[id]
-        return clone
-      }
-      if (prev[id] === state) return prev
-      return { ...prev, [id]: state }
-    })
+  const increaseSticker = (id) => {
+    setStickerCount(id, getStickerCount(latestStickerCounts.current, id) + 1)
   }
+
+  const decreaseSticker = (id) => {
+    setStickerCount(id, getStickerCount(latestStickerCounts.current, id) - 1)
+  }
+
+  const resetSticker = (id) => setStickerCount(id, 0)
+
+  const undoLastChange = () => {
+    if (!lastChange) return
+    setStickerCount(lastChange.id, lastChange.previousCount, false)
+    setLastChange(null)
+  }
+
+  const useCollection = (event) => {
+    event.preventDefault()
+    const nextCollectionId = collectionInput.trim()
+    if (nextCollectionId) setCollectionId(nextCollectionId)
+  }
+
+  const copyCollectionId = async () => {
+    await navigator.clipboard?.writeText(collectionId)
+  }
+
+  const countryStickerIds = useMemo(
+    () =>
+      groups.flatMap((group) =>
+        group.countries.flatMap((country) =>
+          Array.from({ length: albumMeta.stickersPerCountry }, (_, i) => `${country.code} ${i + 1}`),
+        ),
+      ),
+    [],
+  )
 
   const countryStickerTotal = albumMeta.totalCountries * albumMeta.stickersPerCountry
-  const specialOwned = specialStickers.filter((id) => Boolean(stickersState[id])).length
-  const countryOwned = Object.keys(stickersState).filter((id) => id.includes(' ')).length
-  const duplicatesCount = Object.values(stickersState).filter(
-    (value) => value === STICKER_STATE.DUPLICATE,
-  ).length
-  const ownedTotal = Object.keys(stickersState).length
+  const specialOwned = specialStickers.filter((id) => getStickerCount(stickerCounts, id) > 0).length
+  const countryOwned = countryStickerIds.filter((id) => getStickerCount(stickerCounts, id) > 0).length
+  const duplicatesCount = Object.values(stickerCounts).reduce((total, count) => total + Math.max(count - 1, 0), 0)
+  const physicalStickersCount = Object.values(stickerCounts).reduce((total, count) => total + count, 0)
+  const ownedTotal = Object.values(stickerCounts).filter((count) => count > 0).length
   const percent = Math.round((ownedTotal / albumMeta.totalStickers) * 100)
 
   return (
@@ -259,13 +420,23 @@ function App() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setDarkMode((prev) => !prev)}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              {darkMode ? 'Modo claro' : 'Modo oscuro'}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={undoLastChange}
+                disabled={!lastChange}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                Deshacer
+              </button>
+              <button
+                type="button"
+                onClick={() => setDarkMode((prev) => !prev)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                {darkMode ? 'Modo claro' : 'Modo oscuro'}
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 space-y-2">
@@ -280,10 +451,48 @@ function App() {
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Paises: {countryOwned}/{countryStickerTotal} | Especiales: {specialOwned}/{specialStickers.length} |
-              Repetidas: {duplicatesCount}
+              Repetidas: {duplicatesCount} | Total fisicas: {physicalStickersCount}
+            </p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Usa +1 para sumar, -1 para restar y 0 para desmarcar una barajita.
             </p>
           </div>
         </header>
+
+        <section className="mb-6 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-lg font-bold">Sincronizacion</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Usa el mismo codigo de coleccion en tu PC y celular para compartir los datos.
+              </p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{syncStatus}</p>
+            </div>
+
+            <form onSubmit={useCollection} className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={collectionInput}
+                onChange={(event) => setCollectionInput(event.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold uppercase text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                aria-label="Codigo de coleccion"
+              />
+              <button
+                type="submit"
+                className="rounded-lg border border-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+              >
+                Usar codigo
+              </button>
+              <button
+                type="button"
+                onClick={copyCollectionId}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+              >
+                Copiar
+              </button>
+            </form>
+          </div>
+        </section>
 
         <nav className="sticky top-0 z-10 mb-6 rounded-xl border border-slate-300 bg-white/95 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -307,29 +516,20 @@ function App() {
 
         <section className="mb-6 rounded-2xl border border-slate-300 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <h2 className="text-lg font-bold">Barajitas especiales</h2>
-          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">00, FWC, copa, balon, mascota y slogan</p>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-            {specialStickers.map((id) => {
-              const status = stickersState[id]
-              const isOwned = status === STICKER_STATE.OWNED
-              const isDuplicate = status === STICKER_STATE.DUPLICATE
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => toggleSticker(id)}
-                  className={`rounded-md border px-2 py-2 text-sm font-semibold ${
-                    isOwned
-                      ? 'border-emerald-600 bg-emerald-500 text-white'
-                      : isDuplicate
-                        ? 'border-amber-500 bg-amber-400 text-slate-900'
-                      : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {id}
-                </button>
-              )
-            })}
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+            Usa +1 para sumar cantidad, -1 para restar y 0 para desmarcar por completo.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+            {specialStickers.map((id) => (
+              <StickerButton
+                key={id}
+                id={id}
+                count={getStickerCount(stickerCounts, id)}
+                increaseSticker={increaseSticker}
+                decreaseSticker={decreaseSticker}
+                resetSticker={resetSticker}
+              />
+            ))}
           </div>
         </section>
 
@@ -338,9 +538,11 @@ function App() {
             <GroupSection
               key={group.id}
               group={group}
-              stickersState={stickersState}
-              toggleSticker={toggleSticker}
-              setStickerState={setStickerState}
+              stickerCounts={stickerCounts}
+              increaseSticker={increaseSticker}
+              decreaseSticker={decreaseSticker}
+              resetSticker={resetSticker}
+              setStickerCount={setStickerCount}
             />
           ))}
         </div>
