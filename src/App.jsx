@@ -40,6 +40,12 @@ function StickerButton({ id, count, increaseSticker, decreaseSticker, resetStick
   const isOwned = count > 0
   const hasDuplicates = count > 1
 
+  const confirmReset = () => {
+    if (window.confirm(`Estas seguro que quieres desmarcar ${id} y dejarla en 0?`)) {
+      resetSticker(id)
+    }
+  }
+
   return (
     <div
       className={`overflow-hidden rounded-md border text-sm font-medium transition ${
@@ -74,7 +80,7 @@ function StickerButton({ id, count, increaseSticker, decreaseSticker, resetStick
         </button>
         <button
           type="button"
-          onClick={() => resetSticker(id)}
+          onClick={confirmReset}
           disabled={!isOwned}
           className="min-h-11 px-2 py-2 hover:bg-black/10 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-white/10"
           aria-label={`Desmarcar ${id}`}
@@ -97,6 +103,8 @@ function CountrySection({ country, stickerCounts, increaseSticker, decreaseStick
   const isCompleted = ownedCount === albumMeta.stickersPerCountry
 
   const markAll = () => {
+    if (!window.confirm(`Estas seguro que quieres marcar todas las barajitas de ${country.name}?`)) return
+
     stickers.forEach((id) => {
       if (getStickerCount(stickerCounts, id) === 0) {
         setStickerCount(id, 1)
@@ -105,6 +113,8 @@ function CountrySection({ country, stickerCounts, increaseSticker, decreaseStick
   }
 
   const clearAll = () => {
+    if (!window.confirm(`Estas seguro que quieres limpiar todas las barajitas de ${country.name}?`)) return
+
     stickers.forEach((id) => {
       if (getStickerCount(stickerCounts, id) > 0) {
         setStickerCount(id, 0)
