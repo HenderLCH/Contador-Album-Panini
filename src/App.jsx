@@ -58,7 +58,8 @@ function StickerButton({ id, count, increaseSticker, decreaseSticker, resetStick
     >
       <div className="flex min-h-16 w-full flex-col items-center justify-center px-2 py-3">
         <span className="text-base font-bold">{id}</span>
-        <span className="text-xs font-bold">{isOwned ? `Cantidad: ${count}` : 'Sin marcar'}</span>
+        {!isOwned && <span className="text-xs font-bold">Sin marcar</span>}
+        {hasDuplicates && <span className="text-xs font-bold">Repetidas: {count - 1}</span>}
       </div>
       <div className="grid grid-cols-3 border-t border-black/10 text-sm font-bold dark:border-white/20">
         <button
