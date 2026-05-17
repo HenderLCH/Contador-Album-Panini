@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactCountryFlag from 'react-country-flag'
 import { albumMeta, groups, specialStickers } from './data/albumData'
 import { isSupabaseConfigured, supabase } from './supabaseClient'
+import { SHARE_MODES, buildShareListText, shareListText } from './shareList'
 
 const STORAGE_KEY = 'album-panini-2026-owned'
 const COLLECTION_KEY = 'album-panini-2026-collection-id'
@@ -96,6 +97,115 @@ function CatalogSectionHeader({ section, count, badgeClassName }) {
         </div>
       </div>
       <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${badgeClassName}`}>{count}</span>
+    </div>
+  )
+}
+
+function MobileSharePanel({ stickerCounts, collectionId }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [shareMode, setShareMode] = useState(SHARE_MODES.BOTH)
+  const [shareStatus, setShareStatus] = useState('')
+
+  const handleShare = async () => {
+    const text = buildShareListText(stickerCounts, collectionId, shareMode)
+    const hasStickerLines = text.split('\n').some((line) => line.includes(':'))
+
+    if (!hasStickerLines) {
+      setShareStatus('No hay barajitas para compartir con esa opcion.')
+      return
+    }
+
+    const result = await shareListText(text)
+    if (result.method === 'cancelled') return
+
+    setShareStatus(
+      result.method === 'share' ? 'Lista compartida.' : 'Lista copiada o abierta en WhatsApp.',
+    )
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="mb-4 md:hidden">
+      <button
+        type="button"
+        onClick={() => {
+          setShareStatus('')
+          setIsOpen(true)
+        }}
+        className="w-full rounded-xl border border-emerald-500 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+      >
+        Compartir lista
+      </button>
+      {shareStatus && <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">{shareStatus}</p>}
+
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="share-dialog-title"
+          onClick={() => setIsOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-300 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+            role="presentation"
+          >
+            <h2 id="share-dialog-title" className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              Que quieres compartir?
+            </h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Se genera un texto listo para WhatsApp con banderas y numeros.
+            </p>
+
+            <div className="mt-4 space-y-2">
+              {[
+                { id: SHARE_MODES.REMAINING, label: 'Restantes (me faltan)' },
+                { id: SHARE_MODES.DUPLICATES, label: 'Repetidas' },
+                { id: SHARE_MODES.BOTH, label: 'Ambas' },
+              ].map((option) => (
+                <label
+                  key={option.id}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${
+                    shareMode === option.id
+                      ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30'
+                      : 'border-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="share-mode"
+                    value={option.id}
+                    checked={shareMode === option.id}
+                    onChange={() => setShareMode(option.id)}
+                    className="h-4 w-4 accent-emerald-600"
+                  />
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{option.label}</span>
+                </label>
+              ))}
+            </div>
+
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Codigo: {collectionId}</p>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold dark:border-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="flex-1 rounded-lg border border-emerald-500 bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                Compartir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -799,6 +909,8 @@ function App() {
             </form>
           </div>
         </section>
+
+        <MobileSharePanel stickerCounts={stickerCounts} collectionId={collectionId} />
 
         <MobileViewTabs
           mobileView={mobileView}
