@@ -6,6 +6,7 @@ import { isSupabaseConfigured, supabase } from './supabaseClient'
 const STORAGE_KEY = 'album-panini-2026-owned'
 const COLLECTION_KEY = 'album-panini-2026-collection-id'
 const THEME_KEY = 'album-panini-2026-theme'
+const UNDO_HISTORY_LIMIT = 10
 const SOCIAL_LINKS = {
   github: 'https://github.com/HenderLCH',
   instagram: 'https://instagram.com/henderjr',
@@ -35,6 +36,247 @@ const normalizeStickerCounts = (rawData) => {
 }
 
 const getStickerCount = (stickerCounts, id) => stickerCounts[id] ?? 0
+
+const MOBILE_VIEWS = {
+  PRINCIPAL: 'principal',
+  RESTANTES: 'restantes',
+  REPETIDAS: 'repetidas',
+}
+
+const buildCatalogSections = () => {
+  const sections = [
+    {
+      key: 'especiales',
+      title: 'Especiales',
+      subtitle: 'Barajitas especiales',
+      items: specialStickers.map((id) => ({ id, label: id })),
+    },
+  ]
+
+  groups.forEach((group) => {
+    group.countries.forEach((country) => {
+      sections.push({
+        key: `${group.id}-${country.code}`,
+        title: country.name,
+        subtitle: `Grupo ${group.id} · ${country.code}`,
+        country,
+        items: Array.from({ length: albumMeta.stickersPerCountry }, (_, index) => ({
+          id: `${country.code} ${index + 1}`,
+          label: String(index + 1),
+        })),
+      })
+    })
+  })
+
+  return sections
+}
+
+function CatalogSectionHeader({ section, count, badgeClassName }) {
+  return (
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        {section.country ? (
+          <ReactCountryFlag
+            countryCode={section.country.flag}
+            svg
+            style={{ width: '1.5rem', height: '1.5rem', flexShrink: 0 }}
+            aria-label={`Bandera de ${section.country.name}`}
+          />
+        ) : (
+          <span
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+            aria-hidden="true"
+          >
+            ★
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">{section.title}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{section.subtitle}</p>
+        </div>
+      </div>
+      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${badgeClassName}`}>{count}</span>
+    </div>
+  )
+}
+
+function MobileViewTabs({ mobileView, setMobileView, remainingCount, duplicatesCount }) {
+  const tabs = [
+    { id: MOBILE_VIEWS.PRINCIPAL, label: 'Album' },
+    { id: MOBILE_VIEWS.RESTANTES, label: `Faltan (${remainingCount})` },
+    { id: MOBILE_VIEWS.REPETIDAS, label: `Rep. (${duplicatesCount})` },
+  ]
+
+  return (
+    <nav className="sticky top-0 z-20 mb-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-300 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:hidden">
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => setMobileView(tab.id)}
+          className={`rounded-lg px-2 py-2 text-xs font-semibold ${
+            mobileView === tab.id
+              ? 'bg-emerald-500 text-white'
+              : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+function MobileRestantesView({ catalogSections, stickerCounts, markAsOwned, remainingCount }) {
+  if (remainingCount === 0) {
+    return (
+      <div className="rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-center text-sm font-medium text-emerald-800 md:hidden dark:bg-emerald-900/30 dark:text-emerald-200">
+        No te falta ninguna barajita.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3 md:hidden">
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        Toca una barajita para marcarla como obtenida. Desaparecera de esta lista.
+      </p>
+      {catalogSections.map((section) => {
+        const remainingItems = section.items.filter((item) => getStickerCount(stickerCounts, item.id) === 0)
+        if (remainingItems.length === 0) return null
+
+        return (
+          <article
+            key={section.key}
+            className="rounded-xl border border-slate-300 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+          >
+            <CatalogSectionHeader
+              section={section}
+              count={remainingItems.length}
+              badgeClassName="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+            />
+            <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6">
+              {remainingItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => markAsOwned(item.id)}
+                  className="min-h-9 rounded-md border border-slate-300 bg-slate-100 px-1 text-xs font-bold text-slate-800 hover:bg-emerald-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-emerald-900/40"
+                  title={item.id}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function MobileRepetidasView({ catalogSections, stickerCounts, subtractDuplicate, duplicatesCount }) {
+  if (duplicatesCount === 0) {
+    return (
+      <div className="rounded-xl border border-slate-300 bg-white p-4 text-center text-sm font-medium text-slate-600 md:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+        No tienes repetidas por ahora.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3 md:hidden">
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        Toca una repetida para restar 1. Si solo queda una copia, desaparece de esta lista.
+      </p>
+      {catalogSections.map((section) => {
+        const duplicateItems = section.items
+          .map((item) => ({
+            ...item,
+            duplicateCount: getStickerCount(stickerCounts, item.id) - 1,
+          }))
+          .filter((item) => item.duplicateCount > 0)
+
+        if (duplicateItems.length === 0) return null
+
+        return (
+          <article
+            key={section.key}
+            className="rounded-xl border border-amber-400 bg-amber-50 p-3 shadow-sm dark:border-amber-600 dark:bg-amber-900/20"
+          >
+            <CatalogSectionHeader
+              section={section}
+              count={duplicateItems.length}
+              badgeClassName="bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100"
+            />
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+              {duplicateItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => subtractDuplicate(item.id)}
+                  className="flex min-h-11 flex-col items-center justify-center rounded-md border border-amber-500 bg-amber-300 px-1 text-xs font-bold text-slate-900 hover:bg-amber-200"
+                  title={item.id}
+                >
+                  <span>{item.label}</span>
+                  <span className="text-[10px] font-extrabold">x{item.duplicateCount}</span>
+                </button>
+              ))}
+            </div>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+const escapeCsvField = (value) => {
+  const text = String(value)
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+  return text
+}
+
+const CSV_MAX_COLUMNS = 10
+
+const chunkIntoGridRows = (cells, columns = CSV_MAX_COLUMNS) => {
+  const rows = []
+  for (let index = 0; index < cells.length; index += columns) {
+    rows.push(cells.slice(index, index + columns))
+  }
+  return rows
+}
+
+const gridRowToCsvLine = (cells) => cells.map(escapeCsvField).join(',')
+
+const buildAlbumCsv = (allStickerIds, stickerCounts) => {
+  const remaining = allStickerIds.filter((id) => getStickerCount(stickerCounts, id) === 0)
+  const duplicateCells = allStickerIds
+    .map((id) => ({ id, duplicateCount: getStickerCount(stickerCounts, id) - 1 }))
+    .filter(({ duplicateCount }) => duplicateCount > 0)
+    .map(({ id, duplicateCount }) => `${id} (${duplicateCount})`)
+
+  const lines = [
+    'Restantes',
+    ...chunkIntoGridRows(remaining).map(gridRowToCsvLine),
+    '',
+    'Repetidas',
+    ...chunkIntoGridRows(duplicateCells).map(gridRowToCsvLine),
+  ]
+
+  return lines.join('\r\n')
+}
+
+const downloadAlbumCsv = (allStickerIds, stickerCounts, collectionId) => {
+  const csv = buildAlbumCsv(allStickerIds, stickerCounts)
+  const date = new Date().toISOString().slice(0, 10)
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `album-panini-${collectionId}-${date}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
 
 function StickerButton({ id, count, increaseSticker, decreaseSticker, resetSticker }) {
   const isOwned = count > 0
@@ -125,7 +367,7 @@ function CountrySection({ country, stickerCounts, increaseSticker, decreaseStick
 
   return (
     <article
-      className={`rounded-xl border p-4 shadow-sm ${
+      className={`rounded-xl border p-3 shadow-sm md:p-4 ${
         isCompleted
           ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20'
           : 'border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900'
@@ -259,7 +501,9 @@ function App() {
   const [syncStatus, setSyncStatus] = useState(isSupabaseConfigured ? 'Cargando Supabase...' : 'Configura Supabase para sincronizar')
   const [cloudReady, setCloudReady] = useState(!isSupabaseConfigured)
   const latestStickerCounts = useRef(stickerCounts)
-  const [lastChange, setLastChange] = useState(null)
+  const undoStackRef = useRef([])
+  const [undoStackSize, setUndoStackSize] = useState(0)
+  const [mobileView, setMobileView] = useState(MOBILE_VIEWS.PRINCIPAL)
   const [darkMode, setDarkMode] = useState(() => {
     const storedTheme = localStorage.getItem(THEME_KEY)
     if (storedTheme) return storedTheme === 'dark'
@@ -350,6 +594,11 @@ function App() {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
 
+  const recordUndoStep = (change) => {
+    undoStackRef.current = [...undoStackRef.current, change].slice(-UNDO_HISTORY_LIMIT)
+    setUndoStackSize(undoStackRef.current.length)
+  }
+
   const setStickerCount = (id, count, shouldTrackChange = true) => {
     const previousStickerCounts = latestStickerCounts.current
     const previousCount = getStickerCount(previousStickerCounts, id)
@@ -368,7 +617,7 @@ function App() {
     setStickerCounts(nextStickerCounts)
 
     if (shouldTrackChange) {
-      setLastChange({ id, previousCount })
+      recordUndoStep({ id, previousCount })
     }
   }
 
@@ -382,11 +631,36 @@ function App() {
 
   const resetSticker = (id) => setStickerCount(id, 0)
 
-  const undoLastChange = () => {
-    if (!lastChange) return
-    setStickerCount(lastChange.id, lastChange.previousCount, false)
-    setLastChange(null)
-  }
+  const undoLastChangeRef = useRef(() => {})
+
+  useEffect(() => {
+    undoLastChangeRef.current = () => {
+      const undoStack = undoStackRef.current
+      if (undoStack.length === 0) return
+
+      const lastStep = undoStack[undoStack.length - 1]
+      undoStackRef.current = undoStack.slice(0, -1)
+      setUndoStackSize(undoStackRef.current.length)
+      setStickerCount(lastStep.id, lastStep.previousCount, false)
+    }
+  })
+
+  const undoLastChange = () => undoLastChangeRef.current()
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z' || event.shiftKey) return
+
+      const target = event.target
+      if (target instanceof HTMLElement && target.closest('input, textarea, [contenteditable="true"]')) return
+
+      event.preventDefault()
+      undoLastChangeRef.current()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const useCollection = (event) => {
     event.preventDefault()
@@ -408,6 +682,15 @@ function App() {
     [],
   )
 
+  const allStickerIds = useMemo(() => [...specialStickers, ...countryStickerIds], [countryStickerIds])
+  const catalogSections = useMemo(() => buildCatalogSections(), [])
+
+  const exportCsv = () => downloadAlbumCsv(allStickerIds, stickerCounts, collectionId)
+
+  const markAsOwned = (id) => setStickerCount(id, 1)
+  const subtractDuplicate = (id) => decreaseSticker(id)
+
+  const remainingCount = allStickerIds.filter((id) => getStickerCount(stickerCounts, id) === 0).length
   const countryStickerTotal = albumMeta.totalCountries * albumMeta.stickersPerCountry
   const specialOwned = specialStickers.filter((id) => getStickerCount(stickerCounts, id) > 0).length
   const countryOwned = countryStickerIds.filter((id) => getStickerCount(stickerCounts, id) > 0).length
@@ -434,11 +717,19 @@ function App() {
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={undoLastChange}
-                disabled={!lastChange}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                onClick={exportCsv}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
               >
-                Deshacer
+                Exportar CSV
+              </button>
+              <button
+                type="button"
+                onClick={undoLastChange}
+                disabled={undoStackSize === 0}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                title={`Deshacer hasta ${UNDO_HISTORY_LIMIT} pasos (Ctrl+Z)`}
+              >
+                Deshacer{undoStackSize > 0 ? ` (${undoStackSize})` : ''}
               </button>
               <button
                 type="button"
@@ -458,14 +749,18 @@ function App() {
               />
             </div>
             <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Tienes {ownedTotal} de {albumMeta.totalStickers} ({percent}%)
+              Tienes {ownedTotal} de {albumMeta.totalStickers} ({percent}%) · Faltan {remainingCount}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Paises: {countryOwned}/{countryStickerTotal} | Especiales: {specialOwned}/{specialStickers.length} |
               Repetidas: {duplicatesCount} | Total fisicas: {physicalStickersCount}
             </p>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Usa +1 para sumar, -1 para restar y 0 para desmarcar una barajita.
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 md:hidden">
+              En movil usa Faltan y Rep. En Album puedes sumar repetidas con +1.
+            </p>
+            <p className="hidden text-xs font-medium text-slate-500 dark:text-slate-400 md:block">
+              Usa +1 para sumar, -1 para restar y 0 para desmarcar. Deshacer guarda los ultimos {UNDO_HISTORY_LIMIT}{' '}
+              pasos (Ctrl+Z).
             </p>
           </div>
         </header>
@@ -505,7 +800,33 @@ function App() {
           </div>
         </section>
 
-        <nav className="sticky top-0 z-10 mb-6 rounded-xl border border-slate-300 bg-white/95 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+        <MobileViewTabs
+          mobileView={mobileView}
+          setMobileView={setMobileView}
+          remainingCount={remainingCount}
+          duplicatesCount={duplicatesCount}
+        />
+
+        {mobileView === MOBILE_VIEWS.RESTANTES && (
+          <MobileRestantesView
+            catalogSections={catalogSections}
+            stickerCounts={stickerCounts}
+            markAsOwned={markAsOwned}
+            remainingCount={remainingCount}
+          />
+        )}
+
+        {mobileView === MOBILE_VIEWS.REPETIDAS && (
+          <MobileRepetidasView
+            catalogSections={catalogSections}
+            stickerCounts={stickerCounts}
+            subtractDuplicate={subtractDuplicate}
+            duplicatesCount={duplicatesCount}
+          />
+        )}
+
+        <div className={mobileView === MOBILE_VIEWS.PRINCIPAL ? '' : 'hidden md:block'}>
+        <nav className="sticky top-0 z-10 mb-6 rounded-xl border border-slate-300 bg-white/95 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 md:top-0">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Ir rapido a un grupo
           </p>
@@ -556,6 +877,7 @@ function App() {
               setStickerCount={setStickerCount}
             />
           ))}
+        </div>
         </div>
 
         <footer className="mt-8 rounded-2xl border border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">

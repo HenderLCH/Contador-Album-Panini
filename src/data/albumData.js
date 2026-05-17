@@ -33,9 +33,9 @@ export const groups = [
     id: 'A',
     countries: [
       { name: 'Mexico', code: 'MEX', flag: 'MX' },
-      { name: 'Chequia', code: 'CZE', flag: 'CZ' },
-      { name: 'Republica de Corea', code: 'KOR', flag: 'KR' },
       { name: 'Sudafrica', code: 'RSA', flag: 'ZA' },
+      { name: 'Republica de Corea', code: 'KOR', flag: 'KR' },
+      { name: 'Chequia', code: 'CZE', flag: 'CZ' },       
     ],
   },
   {
@@ -51,17 +51,17 @@ export const groups = [
     id: 'C',
     countries: [
       { name: 'Brasil', code: 'BRA', flag: 'BR' },
-      { name: 'Escocia', code: 'SCO', flag: 'GB' },
-      { name: 'Haiti', code: 'HAI', flag: 'HT' },
       { name: 'Marruecos', code: 'MAR', flag: 'MA' },
+      { name: 'Haiti', code: 'HAI', flag: 'HT' },
+      { name: 'Escocia', code: 'SCO', flag: 'GB-SCT' },
     ],
   },
   {
     id: 'D',
     countries: [
       { name: 'EE. UU.', code: 'USA', flag: 'US' },
-      { name: 'Australia', code: 'AUS', flag: 'AU' },
       { name: 'Paraguay', code: 'PAR', flag: 'PY' },
+      { name: 'Australia', code: 'AUS', flag: 'AU' },
       { name: 'Turquia', code: 'TUR', flag: 'TR' },
     ],
   },
@@ -69,16 +69,16 @@ export const groups = [
     id: 'E',
     countries: [
       { name: 'Alemania', code: 'GER', flag: 'DE' },
-      { name: 'Costa de Marfil', code: 'CIV', flag: 'CI' },
       { name: 'Curazao', code: 'CUW', flag: 'CW' },
+      { name: 'Costa de Marfil', code: 'CIV', flag: 'CI' },
       { name: 'Ecuador', code: 'ECU', flag: 'EC' },
     ],
   },
   {
     id: 'F',
     countries: [
-      { name: 'Japon', code: 'JPN', flag: 'JP' },
       { name: 'Paises Bajos', code: 'NED', flag: 'NL' },
+      { name: 'Japon', code: 'JPN', flag: 'JP' },
       { name: 'Suecia', code: 'SWE', flag: 'SE' },
       { name: 'Tunez', code: 'TUN', flag: 'TN' },
     ],
@@ -88,16 +88,16 @@ export const groups = [
     countries: [
       { name: 'Belgica', code: 'BEL', flag: 'BE' },
       { name: 'Egipto', code: 'EGY', flag: 'EG' },
-      { name: 'Nueva Zelanda', code: 'NZL', flag: 'NZ' },
       { name: 'RI de Iran', code: 'IRN', flag: 'IR' },
+      { name: 'Nueva Zelanda', code: 'NZL', flag: 'NZ' },
     ],
   },
   {
     id: 'H',
     countries: [
-      { name: 'Arabia Saudi', code: 'KSA', flag: 'SA' },
       { name: 'Espana', code: 'ESP', flag: 'ES' },
       { name: 'Islas de Cabo Verde', code: 'CPV', flag: 'CV' },
+      { name: 'Arabia Saudi', code: 'KSA', flag: 'SA' },
       { name: 'Uruguay', code: 'URU', flag: 'UY' },
     ],
   },
@@ -105,16 +105,16 @@ export const groups = [
     id: 'I',
     countries: [
       { name: 'Francia', code: 'FRA', flag: 'FR' },
+      { name: 'Senegal', code: 'SEN', flag: 'SN' },
       { name: 'Irak', code: 'IRQ', flag: 'IQ' },
       { name: 'Noruega', code: 'NOR', flag: 'NO' },
-      { name: 'Senegal', code: 'SEN', flag: 'SN' },
     ],
   },
   {
     id: 'J',
     countries: [
-      { name: 'Argelia', code: 'ALG', flag: 'DZ' },
       { name: 'Argentina', code: 'ARG', flag: 'AR' },
+      { name: 'Argelia', code: 'ALG', flag: 'DZ' },
       { name: 'Austria', code: 'AUT', flag: 'AT' },
       { name: 'Jordania', code: 'JOR', flag: 'JO' },
     ],
@@ -122,18 +122,18 @@ export const groups = [
   {
     id: 'K',
     countries: [
-      { name: 'Colombia', code: 'COL', flag: 'CO' },
       { name: 'Portugal', code: 'POR', flag: 'PT' },
       { name: 'RD Congo', code: 'COD', flag: 'CD' },
       { name: 'Uzbekistan', code: 'UZB', flag: 'UZ' },
+      { name: 'Colombia', code: 'COL', flag: 'CO' },
     ],
   },
   {
     id: 'L',
     countries: [
+      { name: 'Inglaterra', code: 'ENG', flag: 'GB' },
       { name: 'Croacia', code: 'CRO', flag: 'HR' },
       { name: 'Ghana', code: 'GHA', flag: 'GH' },
-      { name: 'Inglaterra', code: 'ENG', flag: 'GB' },
       { name: 'Panama', code: 'PAN', flag: 'PA' },
     ],
   },
