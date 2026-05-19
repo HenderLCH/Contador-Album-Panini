@@ -101,42 +101,42 @@ function CatalogSectionHeader({ section, count, badgeClassName }) {
   )
 }
 
-function MobileSharePanel({ stickerCounts, collectionId }) {
+function ShareListPanel({ stickerCounts, collectionId, onStatusMessage }) {
   const [isOpen, setIsOpen] = useState(false)
   const [shareMode, setShareMode] = useState(SHARE_MODES.BOTH)
-  const [shareStatus, setShareStatus] = useState('')
+
+  const openDialog = () => {
+    onStatusMessage?.('')
+    setIsOpen(true)
+  }
 
   const handleShare = async () => {
     const text = buildShareListText(stickerCounts, collectionId, shareMode)
     const hasStickerLines = text.split('\n').some((line) => line.includes(':'))
 
     if (!hasStickerLines) {
-      setShareStatus('No hay barajitas para compartir con esa opcion.')
+      onStatusMessage?.('No hay barajitas para compartir con esa opcion.')
       return
     }
 
     const result = await shareListText(text)
     if (result.method === 'cancelled') return
 
-    setShareStatus(
+    onStatusMessage?.(
       result.method === 'share' ? 'Lista compartida.' : 'Lista copiada o abierta en WhatsApp.',
     )
     setIsOpen(false)
   }
 
   return (
-    <div className="mb-4 md:hidden">
+    <>
       <button
         type="button"
-        onClick={() => {
-          setShareStatus('')
-          setIsOpen(true)
-        }}
-        className="w-full rounded-xl border border-emerald-500 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+        onClick={openDialog}
+        className="rounded-lg border border-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
       >
         Compartir lista
       </button>
-      {shareStatus && <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">{shareStatus}</p>}
 
       {isOpen && (
         <div
@@ -206,7 +206,7 @@ function MobileSharePanel({ stickerCounts, collectionId }) {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -218,13 +218,13 @@ function MobileViewTabs({ mobileView, setMobileView, remainingCount, duplicatesC
   ]
 
   return (
-    <nav className="sticky top-0 z-20 mb-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-300 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:hidden">
+    <nav className="sticky top-0 z-20 mb-4 grid grid-cols-3 gap-1 rounded-xl border border-slate-300 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:inline-grid md:w-auto md:max-w-md md:gap-1 md:p-1">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => setMobileView(tab.id)}
-          className={`rounded-lg px-2 py-2 text-xs font-semibold ${
+          className={`rounded-lg px-2 py-2 text-xs font-semibold md:px-3 md:py-1.5 md:text-xs ${
             mobileView === tab.id
               ? 'bg-emerald-500 text-white'
               : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
@@ -240,14 +240,14 @@ function MobileViewTabs({ mobileView, setMobileView, remainingCount, duplicatesC
 function MobileRestantesView({ catalogSections, stickerCounts, markAsOwned, remainingCount }) {
   if (remainingCount === 0) {
     return (
-      <div className="rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-center text-sm font-medium text-emerald-800 md:hidden dark:bg-emerald-900/30 dark:text-emerald-200">
+      <div className="rounded-xl border border-emerald-400 bg-emerald-50 p-4 text-center text-sm font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
         No te falta ninguna barajita.
       </div>
     )
   }
 
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-3">
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Toca una barajita para marcarla como obtenida. Desaparecera de esta lista.
       </p>
@@ -265,7 +265,7 @@ function MobileRestantesView({ catalogSections, stickerCounts, markAsOwned, rema
               count={remainingItems.length}
               badgeClassName="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
             />
-            <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6">
+            <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10">
               {remainingItems.map((item) => (
                 <button
                   key={item.id}
@@ -288,14 +288,14 @@ function MobileRestantesView({ catalogSections, stickerCounts, markAsOwned, rema
 function MobileRepetidasView({ catalogSections, stickerCounts, subtractDuplicate, duplicatesCount }) {
   if (duplicatesCount === 0) {
     return (
-      <div className="rounded-xl border border-slate-300 bg-white p-4 text-center text-sm font-medium text-slate-600 md:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+      <div className="rounded-xl border border-slate-300 bg-white p-4 text-center text-sm font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
         No tienes repetidas por ahora.
       </div>
     )
   }
 
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-3">
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Toca una repetida para restar 1. Si solo queda una copia, desaparece de esta lista.
       </p>
@@ -319,7 +319,7 @@ function MobileRepetidasView({ catalogSections, stickerCounts, subtractDuplicate
               count={duplicateItems.length}
               badgeClassName="bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100"
             />
-            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
               {duplicateItems.map((item) => (
                 <button
                   key={item.id}
@@ -614,6 +614,7 @@ function App() {
   const undoStackRef = useRef([])
   const [undoStackSize, setUndoStackSize] = useState(0)
   const [mobileView, setMobileView] = useState(MOBILE_VIEWS.PRINCIPAL)
+  const [shareStatus, setShareStatus] = useState('')
   const [darkMode, setDarkMode] = useState(() => {
     const storedTheme = localStorage.getItem(THEME_KEY)
     if (storedTheme) return storedTheme === 'dark'
@@ -824,7 +825,12 @@ function App() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <ShareListPanel
+                stickerCounts={stickerCounts}
+                collectionId={collectionId}
+                onStatusMessage={setShareStatus}
+              />
               <button
                 type="button"
                 onClick={exportCsv}
@@ -865,13 +871,13 @@ function App() {
               Paises: {countryOwned}/{countryStickerTotal} | Especiales: {specialOwned}/{specialStickers.length} |
               Repetidas: {duplicatesCount} | Total fisicas: {physicalStickersCount}
             </p>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 md:hidden">
-              En movil usa Faltan y Rep. En Album puedes sumar repetidas con +1.
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Usa las pestañas Album, Faltan y Rep. En Album usa +1, -1 y 0. Deshacer: {UNDO_HISTORY_LIMIT} pasos
+              (Ctrl+Z). Compartir lista para WhatsApp.
             </p>
-            <p className="hidden text-xs font-medium text-slate-500 dark:text-slate-400 md:block">
-              Usa +1 para sumar, -1 para restar y 0 para desmarcar. Deshacer guarda los ultimos {UNDO_HISTORY_LIMIT}{' '}
-              pasos (Ctrl+Z).
-            </p>
+            {shareStatus && (
+              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{shareStatus}</p>
+            )}
           </div>
         </header>
 
@@ -910,8 +916,6 @@ function App() {
           </div>
         </section>
 
-        <MobileSharePanel stickerCounts={stickerCounts} collectionId={collectionId} />
-
         <MobileViewTabs
           mobileView={mobileView}
           setMobileView={setMobileView}
@@ -937,7 +941,7 @@ function App() {
           />
         )}
 
-        <div className={mobileView === MOBILE_VIEWS.PRINCIPAL ? '' : 'hidden md:block'}>
+        <div className={mobileView === MOBILE_VIEWS.PRINCIPAL ? '' : 'hidden'}>
         <nav className="sticky top-0 z-10 mb-6 rounded-xl border border-slate-300 bg-white/95 p-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 md:top-0">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Ir rapido a un grupo
